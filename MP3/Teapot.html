@@ -1,0 +1,170 @@
+<!DOCTYPE HTML> 
+<html lang="en"> 
+<head>
+<title>Hello Mesh </title>
+<meta charset="utf-8"> 
+</head>
+
+    
+<script id="shader-vs" type="x-shader/x-vertex">
+  attribute vec3 aVertexNormal;
+  attribute vec3 aVertexPosition;
+  
+   uniform mat4 uMVMatrix;
+   uniform mat4 uPMatrix;
+   varying vec3 vNormal;
+   varying vec3 vPosition;
+
+   void main(void){
+      vec4 vertexPositionEye4 = uMVMatrix * vec4(aVertexPosition, 1.0);
+      vPosition = vertexPositionEye4.xyz /vertexPositionEye4.w;
+      //vNormal = normalize(uNMatrix * aVertexNormal);
+      vNormal = aVertexNormal;
+      gl_Position = uPMatrix*uMVMatrix*vec4(aVertexPosition, 1.0);
+    }
+</script>
+<script id="shader-fs" type="x-shader/x-fragment">
+  precision mediump float;
+
+  uniform mat3 uNMatrix;
+
+  uniform vec3 uLightPosition;
+  uniform vec3 uAmbientLightColor;
+  uniform vec3 uDiffuseLightColor;
+  uniform vec3 uSpecularLightColor;
+  uniform vec3 uAmbientMaterialColor;
+  uniform vec3 uDiffuseMaterialColor;
+  uniform vec3 uSpecularMaterialColor;
+
+  uniform float uShininess;
+
+  varying vec3 vPosition;
+  varying vec3 vNormal;
+  varying vec4 vColor;
+
+  void main(void) {
+  // Get the vertex position in eye coordinates
+  //V
+  vec3 vertexPositionEye3 = vPosition;
+  // Calculate the vector (l) to the light source
+  //L 
+  vec3 vectorToLightSource = normalize(uLightPosition - vertexPositionEye3);
+
+  //H = (L+V)/(abs(L+V));
+  vec3 H = normalize(-vertexPositionEye3 + vectorToLightSource);
+
+  // Transform the normal (n) to eye coordinates
+  vec3 normalEye = normalize(uNMatrix * vNormal);
+
+  // Calculate n dot l for diffuse lighting
+  float diffuseLightWeightning = max(dot(normalEye, 
+                                  vectorToLightSource), 0.0);
+                                     
+  // Calculate the reflection vector (r) that is needed for specular light
+  vec3 reflectionVector = normalize(reflect(-vectorToLightSource, 
+                                           normalEye));
+  
+  // The camera in eye coordinates is located in the origin and is pointing
+  // along the negative z-axis. Calculate viewVector (v) 
+  // in eye coordinates as:
+  // (0.0, 0.0, 0.0) - vertexPositionEye3
+  vec3 viewVectorEye = -normalize(vertexPositionEye3);
+  
+  //float rdotv = max(dot(reflectionVector, viewVectorEye), 0.0);
+  float NdotH = max(dot(normalEye,H), 0.0);
+  
+  //float specularLightWeightning = pow(rdotv, uShininess);
+  float specularLightWeightning = pow(NdotH, uShininess);
+
+  gl_FragColor = vec4(((uAmbientLightColor*uAmbientMaterialColor)
+              + (uDiffuseLightColor*uDiffuseMaterialColor) * diffuseLightWeightning
+              + (uSpecularLightColor*uSpecularMaterialColor) * specularLightWeightning),1.0);
+ }
+</script>
+<script id="shader-vs-skybox" type="x-shader/x-vertex">
+    attribute vec3 aVertexPositionSkybox;
+   
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+    
+    varying vec4 vVertexPosition;
+
+    void main(void) {
+
+      vVertexPosition = vec4(aVertexPositionSkybox, 1.0);
+      
+      gl_Position = uPMatrix*uMVMatrix*vec4(aVertexPositionSkybox, 1.0);
+        
+    }   
+</script>
+<script id="shader-fs-skybox" type="x-shader/x-fragment">
+    precision mediump float;
+
+    varying vec4 vVertexPosition;
+
+    uniform samplerCube uCubeSampler;
+
+    void main(void) {
+
+      vec4 color = textureCube(uCubeSampler, normalize(vVertexPosition).xyz);
+      gl_FragColor = vec4(color.xyz, 1.0);
+      //gl_FragColor = vec4(1.0,0.5,0.5,1.0);
+
+     }
+</script>
+<script id="shader-vs-ref" type="x-shader/x-vertex">
+   attribute vec4 vPosition;
+   attribute vec4 vNormal;
+   uniform mat4 uMVMatrix;
+   uniform mat4 uPMatrix;
+   uniform mat3 uNMatrix;
+   varying vec3 R;
+   void main(){
+    gl_Position = uPMatrix*uMVMatrix*vPosition;
+    vec4 eyePos = uMVMatrix*vPosition;
+    vec3 N = uNMatrix*vNormal.xyz;
+    R = reflect(normalize(eyePos.xyz), normalize(N.xyz));
+    //R = reflect(-normalize(eyePos.xyz), normalize(N.xyz));
+   }
+</script>
+<script id="shader-fs-ref" type="x-shader/x-fragment">
+    precision mediump float;
+    uniform samplerCube texMap;
+    varying vec3 R;
+
+    
+    void main(){
+        vec4 texColor = textureCube(texMap, R);
+        gl_FragColor = texColor;
+    }
+</script>
+<script src="gl-matrix-min.js"></script> 
+<script src="webgl-utils.js"></script> 
+<script src="TriMesh.js"></script>  
+<script src="HelloMesh.js"></script>
+<!--<script src="Three.js"></script>-->
+<body onload="startup();">
+ <canvas id="myGLCanvas" width="800" height="800"></canvas>
+    <form id="input_form">
+        <fieldset id="group1">
+        <legend>Rendering Parameters</legend>
+         <input type="radio" name="primitive" id="wireframe" value="wireframe"> Wireframe
+         <input type="radio" name="primitive" id="polygon" id="polygon" value="polygon" checked> Polygon
+         <input type="radio" name="primitive" id="wirepoly" value="wirepoly" > Polygon with Edges  
+        </fieldset>
+        <fieldset id="group2">
+        <legend> Toggle Shaders </legend>
+        <input type="radio" name="turd" id="mirror" value="mirror"> Mirror
+        <input type="radio" name="turd" id="shade" value="shade" checked> Blinn-Phong Shading
+        </fieldset>
+        <fieldset>
+            <legend>Mesh Pose and Camera Position</legend>
+         <emph>Euler Y:</emph> <input type="number" id="eY" value="0"> Keys A and D <br><br>
+         <emph>Eye Z position:</emph> <input type="number" id="eZ" value="0" > Keys ArrowUp and ArrowDown <br><br>
+         <emph> Skybox Euler Y:</emph> <input type="number" id="SkyY" value ="0"> Keys ArrowLeft and ArrowRight 
+        </fieldset>
+        </form>
+</body>
+
+</html>

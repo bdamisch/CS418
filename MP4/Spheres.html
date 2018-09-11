@@ -1,0 +1,97 @@
+<!DOCTYPE HTML> 
+<html lang="en"> 
+<head>
+<title>Hello Phong</title>
+<meta charset="utf-8"> 
+</head>
+
+    
+<script id="shader-phong-phong-vs" type="x-shader/x-vertex">
+  attribute vec3 aVertexNormal;
+  attribute vec3 aVertexPosition;
+  
+   uniform mat4 uMVMatrix;
+   uniform mat4 uPMatrix;
+   //uniform mat3 uNMatrix;
+   varying vec3 vNormal;
+   varying vec3 vPosition;
+
+   void main(void){
+      vec4 vertexPositionEye4 = uMVMatrix * vec4(aVertexPosition, 1.0);
+      vPosition = vertexPositionEye4.xyz /vertexPositionEye4.w;
+      //vNormal = normalize(uNMatrix * aVertexNormal);
+      vNormal = aVertexNormal;
+      gl_Position = uPMatrix*uMVMatrix*vec4(aVertexPosition, 1.0);
+   }
+</script> 
+<script id="shader-phong-phong-fs" type="x-shader/x-fragment">
+  precision mediump float;
+
+  uniform mat3 uNMatrix;
+
+  uniform vec3 uLightPosition;
+  uniform vec3 uAmbientLightColor;
+  uniform vec3 uDiffuseLightColor;
+  uniform vec3 uSpecularLightColor;
+  uniform vec3 uAmbientMaterialColor;
+  uniform vec3 uDiffuseMaterialColor;
+  uniform vec3 uSpecularMaterialColor;
+
+  uniform float uShininess;
+
+  varying vec3 vPosition;
+  varying vec3 vNormal;
+  varying vec4 vColor;
+
+  void main(void) {
+  // Get the vertex position in eye coordinates
+  //V
+  vec3 vertexPositionEye3 = vPosition;
+  // Calculate the vector (l) to the light source
+  //L 
+  vec3 vectorToLightSource = normalize(uLightPosition - vertexPositionEye3);
+
+  //H = (L+V)/(abs(L+V));
+  vec3 H = normalize(-vertexPositionEye3 + vectorToLightSource);
+
+  // Transform the normal (n) to eye coordinates
+  vec3 normalEye = normalize(uNMatrix * vNormal);
+
+  // Calculate n dot l for diffuse lighting
+  float diffuseLightWeightning = max(dot(normalEye, 
+                                  vectorToLightSource), 0.0);
+                                     
+  // Calculate the reflection vector (r) that is needed for specular light
+  vec3 reflectionVector = normalize(reflect(-vectorToLightSource, 
+                                           normalEye));
+  
+  // The camera in eye coordinates is located in the origin and is pointing
+  // along the negative z-axis. Calculate viewVector (v) 
+  // in eye coordinates as:
+  // (0.0, 0.0, 0.0) - vertexPositionEye3
+  vec3 viewVectorEye = -normalize(vertexPositionEye3);
+  
+  //float rdotv = max(dot(reflectionVector, viewVectorEye), 0.0);
+  float NdotH = max(dot(normalEye,H), 0.0);
+  
+  //float specularLightWeightning = pow(rdotv, uShininess);
+  float specularLightWeightning = pow(NdotH, uShininess);
+
+  gl_FragColor = vec4(((uAmbientLightColor*uAmbientMaterialColor)
+              + (uDiffuseLightColor*uDiffuseMaterialColor) * diffuseLightWeightning
+              + (uSpecularLightColor*uSpecularMaterialColor) * specularLightWeightning),1.0);
+   }
+</script>
+<script src="gl-matrix-min.js"></script> 
+<script src="webgl-utils.js"></script>
+<script src="simpleModeling.js"></script>  
+<script src="HelloPhong.js"></script>   
+<body onload="startup();">
+ <canvas id="myGLCanvas" width="800" height="800"></canvas>
+</body>
+    <ul>
+    <li>     Press the space bar to generate a random sphere! </li>
+    <li>     Press it a bunch of times to make sphere craziness! </li>
+    <li>     Press the z button to reset the view!    </li>   
+    </ul>
+</html>
